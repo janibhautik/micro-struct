@@ -1,7 +1,7 @@
 {
     "name": "micro-struct/source",
     "type": "project",
-    "description": "A short description of what your package does",
+    "description": "Micro PHP Structure Source",
     "require": {
         "php": ">=5.3.0"
     },
