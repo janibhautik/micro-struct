@@ -1,5 +1,5 @@
 {
-    "name": "micro-struct/structure",
+    "name": "micro-struct/source",
     "type": "project",
     "description": "A short description of what your package does",
     "require": {
