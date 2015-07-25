@@ -6,11 +6,11 @@ use ReflectionMethod;
 use Exception;
 
 /**
- * System class responsible for whole framework.
+ * Application class responsible for whole Structure.
  *
  * @author Bhavik Patel
  */
-class System
+class Application
 {
 
     /**
@@ -29,40 +29,56 @@ class System
     private $request_uri = '';
 
     /**
-     *
+     * Located controller class name.
+     * 
      * @var type 
      */
     private $located_controller;
 
     /**
-     *
+     * Located method name.
+     * 
      * @var type 
      */
     private $located_method;
 
     /**
-     *
+     * Regexed route rules.
+     * 
      * @var array 
      */
     private $route_rules = array();
 
     /**
-     *
+     * Remaining parts of current request string.
+     * 
      * @var array 
      */
     private $remaining_uri = array();
 
     /**
-     *
+     * Route Configuration.
+     * 
      * @var array 
      */
     private $route_config = array();
+
+    /**
+     * Application configuration.
+     * 
+     * @var array 
+     */
+    private $app_config = array();
 
     /**
      * 
      */
     public function __construct()
     {
+
+        set_error_handler(array($this, 'errorHandler'));
+        set_exception_handler(array($this, 'exceptionHandler'));
+
         #Starting system
         $this->start();
     }
@@ -76,7 +92,8 @@ class System
         {
             $base_url = isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off' ? 'https' : 'http';
             $base_url .= '://' . $_SERVER['HTTP_HOST'];
-            $base_url .= str_replace(basename($_SERVER['SCRIPT_NAME']), '', $_SERVER['SCRIPT_NAME']);
+            $base_url .= str_replace(basename($_SERVER['SCRIPT_NAME']), '',
+                    $_SERVER['SCRIPT_NAME']);
         }
         else
         {
@@ -108,13 +125,16 @@ class System
 
         if (!class_exists($class))
         {
-            throw new Exception("$class not found.");
+            throw new Exception("$class class not found.");
         }
 
         $controller = new $class;
         if (method_exists($controller, $this->located_method))
         {
-            $reflection = new ReflectionMethod($controller, $this->located_method);
+            $reflection = new ReflectionMethod($controller,
+                    $this->located_method);
+
+            # Perpareing method parameter from remaining url.
             $parameter = array();
             $index = 0;
             foreach ($reflection->getParameters() as $param)
@@ -141,43 +161,38 @@ class System
     /**
      * Custom error handler.
      * 
-     * @param   int         $errno
-     * @param   string      $errstr
-     * @param   string      $errfile
-     * @param   int         $errline
+     * @param   int         $code
+     * @param   string      $string
+     * @param   string      $file
+     * @param   int         $line
      * @return  boolean
      */
-    public function errorHandler($errno, $errstr, $errfile, $errline)
+    public function errorHandler($code, $string, $file, $line)
     {
 
-        Logger::add('ERROR', "{$errstr} in file {$errfile} on line {$errline}");
-
-        if (!(error_reporting() & $errno))
+        if (!(error_reporting() & $code))
         {
             return;
         }
 
-        switch ($errno)
+        switch ($code)
         {
             case E_USER_ERROR:
-                echo "<b>FATAL ERROR</b> [$errno] $errstr <br />\n"
-                . "  on line $errline in file $errfile";
-                $this->furtherProcess($this->config['route_defauls']['app_crash']);
+                $title = "FATAL ERROR [$code]";
                 break;
-
             case E_USER_WARNING:
-                echo "<b>WARNING :</b> [$errno] $errstr<br />\n";
+                $title = "WARNING";
                 break;
-
             case E_USER_NOTICE:
-                echo "<b>NOTICE</b> [$errno] $errstr<br />\n";
+                $title = "WARNING";
                 break;
-
             default:
-                echo "Unknown error: [$errno] $errstr on line {$errline} in file {$errfile}<br />\n";
+                $title = "Unknown Error";
                 break;
         }
 
+        $message = "<p style='color:#000;padding:0;margin:0'><span style='border-bottom:1px dashed #000'>$string</span> on line $line in file <i>$file</i></p>";
+        echo "<div style='color:#920000;border:1px solid #CCC;padding:3px;display:inline-block'><b>{$title}</b><br/>$message</div>";
         return true;
     }
 
@@ -188,7 +203,8 @@ class System
      */
     public function exceptionHandler(Exception $ex)
     {
-        return $this->errorHandler(E_USER_ERROR, $ex->getMessage(), $ex->getFile(), $ex->getLine());
+        return $this->errorHandler(E_USER_ERROR, $ex->getMessage(),
+                        $ex->getFile(), $ex->getLine());
     }
 
     /**
@@ -231,7 +247,8 @@ class System
             }
 
             $uri = parse_url($uri, PHP_URL_PATH);
-            $this->request_uri = str_replace(array('//', '../'), '/', trim($uri, '/'));
+            $this->request_uri = str_replace(array('//', '../'), '/',
+                    trim($uri, '/'));
         }
     }
 
@@ -259,16 +276,23 @@ class System
     }
 
     /**
-     * 
+     * Fetches routes from route config.
+     * Replace placeholder with their regex.
+     * Store it to route rules property.
      */
     private function fetchRouteRules()
     {
+
+        # User defined routes.
         $this->route_config = require_once ROOT . 'config' . DSC . 'routes.php';
+
+        # Route placeholder and their regex.
         $regex = array(
             '(:string)' => "([a-zA-Z0-9-_.]+)",
             '(:int)' => "([0-9]+)"
         );
 
+        # Iterate over and preparing regex route rules.
         foreach ($this->route_config['rule'] as $rule => $value)
         {
             $new_rule = array();
@@ -293,6 +317,8 @@ class System
      */
     protected function locateMethod()
     {
+
+        # When no request string, use default route.
         if ($this->request_uri === '')
         {
             $callback = $this->route_rules['/'];
@@ -300,6 +326,8 @@ class System
             $this->located_method = $callback['method'];
             return TRUE;
         }
+
+        # Finding matched route.
         foreach ($this->route_rules as $rule => $callback)
         {
             preg_match('#' . $rule . '#', $this->request_uri, $matches);
@@ -308,6 +336,8 @@ class System
                 $controller = $callback['controller'];
                 $method = $callback['method'];
                 $index = 0;
+
+                # Locating controller class.
                 if (strpos($controller, '@') !== FALSE)
                 {
                     $at = substr($controller, 1);
@@ -320,6 +350,7 @@ class System
                     $index = ++$at;
                 }
 
+                # Locating controller method name.
                 if (strpos($method, '@') !== FALSE)
                 {
                     $at = substr($method, 1);
@@ -330,9 +361,13 @@ class System
                     $method = $matches[$at];
                     $index = ++$at;
                 }
+
+                # Setting located controller class,method and remaining part
+                # which are going to be method parameter to this class property.
                 $this->located_controller = $controller;
                 $this->located_method = $method;
-                $this->remaining_uri = array_slice(explode('/', $this->request_uri), $index);
+                $this->remaining_uri = array_slice(explode('/',
+                                $this->request_uri), $index);
                 break;
             }
         }
