@@ -4,7 +4,7 @@
     "type": "package",
     "description": "Micro PHP Structure Source",
     "require": {
-        "doctrine/orm": "dev-master",
+        "doctrine/orm": "2.4.*",
         "swiftmailer/swiftmailer": "v5.4.0"
     },
     "autoload": {
