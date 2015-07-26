@@ -1,6 +1,6 @@
 {
     "name": "micro-struct/source",
-    "license": "New BSD",
+    "license": "BSD-3-Clause",
     "type": "package",
     "description": "Micro PHP Structure Source",
     "require": {
