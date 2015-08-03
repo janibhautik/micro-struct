@@ -1,5 +1,7 @@
 <?php
 
+namespace MicroStructure;
+
 /**
  * Session Class.
  *

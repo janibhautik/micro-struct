@@ -4,10 +4,14 @@ namespace MicroStructure;
 
 use ReflectionMethod;
 use Exception;
+use Doctrine\ORM\Tools\Setup;
+use Doctrine\ORM\EntityManager;
+use Doctrine\DBAL\Configuration;
+use Doctrine\DBAL\DriverManager;
 
 /**
  * Application class responsible for whole Structure.
- *
+ * 
  * @author Bhavik Patel
  */
 class Application
@@ -68,13 +72,29 @@ class Application
      * 
      * @var array 
      */
-    private $app_config = array();
+    private $config = array();
+
+    /**
+     * Entity manager instance.
+     * 
+     * @var \Doctrine\ORM\EntityManager 
+     */
+    private static $entityManager;
+
+    /**
+     * Databse instance.
+     * 
+     * @var \Doctrine\DBAL\Connection
+     */
+    private static $db;
 
     /**
      * 
      */
     public function __construct()
     {
+
+        $this->config = require_once CONFIG . 'config.php';
 
         set_error_handler(array($this, 'errorHandler'));
         set_exception_handler(array($this, 'exceptionHandler'));
@@ -191,15 +211,20 @@ class Application
                 break;
         }
 
-        $message = "<p style='color:#000;padding:0;margin:0'><span style='border-bottom:1px dashed #000'>$string</span> on line $line in file <i>$file</i></p>";
-        echo "<div style='color:#920000;border:1px solid #CCC;padding:3px;display:inline-block'><b>{$title}</b><br/>$message</div>";
+        $message = "<p style='color:#000;padding:0;margin:0'>"
+                . "<span style='border-bottom:1px dashed #000'>$string</span>"
+                . " on line $line in file <i>$file</i>"
+                . "</p>";
+        echo "<div style='color:#920000;border:1px solid #CCC;padding:3px;display:inline-block'>"
+        . "<b>{$title}</b><br/>$message"
+        . "</div>";
         return true;
     }
 
     /**
      * Custom exception handler.
      * 
-     * @param   object  $ex
+     * @param   \Exception      $ex
      */
     public function exceptionHandler(Exception $ex)
     {
@@ -259,13 +284,44 @@ class Application
      */
     private function start()
     {
+        # Starting session.
+        # Here making session active to every request.
+        new Session();
+
         $this->setBaseURL();
         $this->setRequestURI();
         $this->fetchRouteRules();
+        $this->establishConnection();
         $this->locateMethod();
         $this->invokeMethod();
     }
 
+    /**
+     * 
+     */
+    public function establishConnection()
+    {
+
+        $db = $this->config['db'];
+        
+        # Doctrine ORM
+        if ($db['orm'] === TRUE)
+        {
+            $paths = array(APP . "Doctrine" . DSC);
+            $config = Setup::createAnnotationMetadataConfiguration($paths,
+                            $db['dev_mode']);
+            self::$entityManager = EntityManager::create($db['config'], $config);
+        }
+
+        # Doctrine Database abstract and access layer.
+        if ($db['dbal'] === TRUE)
+        {
+            $config = new Configuration;
+            self::$db = DriverManager::getConnection($db['config'],
+                            $config);
+        }
+    }
+    
     /**
      * 
      * @return Doctrine\ORM\EntityManager
@@ -275,6 +331,14 @@ class Application
         return self::$entityManager;
     }
 
+    /**
+     * 
+     * @return \Doctrine\DBAL\Connection
+     */
+    public static function getDatabase()
+    {
+        return self::$db;
+    }
     /**
      * Fetches routes from route config.
      * Replace placeholder with their regex.
@@ -312,6 +376,7 @@ class Application
     }
 
     /**
+     * Locating controller and it's method based on matched route rules.
      * 
      * @return boolean
      */
